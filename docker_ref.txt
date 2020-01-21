@@ -1,0 +1,310 @@
+images
+containers
+registry -> repositories
+
+DOCKER MACHINE VM
+========================
+docker info
+docker-machine ls
+docker-machine ssh default
+
+BASIC
+========
+docker run busybox:1.24 echo "hello world"
+docker run busybox:1.24 ls /
+docker run -it busybox:1.24
+
+docker run -d busybox:1.24 sleep 100
+docker ps
+docker ps -a
+
+docker run --rm busybox:1.24 sleep 1
+
+docker run --name hello_cont busybox:1.24
+
+docker exec -it <cont_id> <command>
+
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+
+INSPECT
+========
+docker run -d busybox:1.24 sleep 100
+docker inspect <cont_id>
+docker image inspect --format "{{ json .RootFS.Layers }}" alpine
+
+PORTS
+========
+docker run -it -p 8888:8080 tomcat:8.0
+docker run -it -d -p 8888:8080 tomcat:8.0
+docker logs <cont_id>
+
+LAYERS
+========
+docker history busybox:1.24 
+
+
+COMMIT
+========
+docker run -it debian:jessie
+	git
+	apt-get update && apt-get install -y git
+	git
+	exit
+docker commit <cont_id> <repo>/debian:<tag>
+docker images
+
+BUILD
+========
+Dockerfile
+	FROM
+	RUN
+	CMD
+	COPY
+	ADD
+	
+docker build -t <repo>/debian:<tag> <path>
+docker build -t <repo>/debian:<tag> <path> --no-cache=true
+
+docker build -t dockerapp:v0.1 .
+docker run -d -p 5000:5000 <image_id>
+
+PUSH
+========
+docker tag <image_id> <repo>/debian:<tag>
+docker login
+docker push <repo>/debian:<tag> 
+
+VOLUME
+===============
+docker volume create my-vol
+docker run -d --name devtest --mount source=my-vol,target=/app nginx:latest
+docker service create -d --replicas=4 --name devtest-service --mount source=myvol2,target=/app nginx:latest
+docker volume prune
+
+
+docker volume create --name my-vol2
+docker run -it -d --rm -v my-vol2:/usr/local/tomcat/webapps  -p 8080:8080 --name app1 tomcat:8-jre8 
+docker run -it -d --rm  --volumes-from app1  -p 9090:8080 --name app2 tomcat:8-jre8
+
+
+PRUNE
+==============
+docker image prune
+docker container prune
+docker volume prune
+
+BACKUP
+===========
+docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
+docker run -v /dbdata --name dbstore2 ubuntu /bin/bash
+
+LINK
+========
+docker run -d --name redis redis:3.2.0
+docker ps
+
+docker build -t dockerapp:v0.3 .
+docker run -d -p 5000:5000  --link redis <image_id>
+
+####################################################################################################################################################################################
+
+COMPOSE
+========
+docker-compose 
+docker-compose up [-d]
+docker-compose ps
+docker-compose logs [-f]
+docker-compose stop
+docker-compose rm
+
+docker-compose build
+docker-compose up [-d]
+
+version: '3.3'
+
+services:
+   db:
+     image: mysql:5.7
+     volumes:
+       - db_data:/var/lib/mysql
+     restart: always
+     environment:
+       MYSQL_ROOT_PASSWORD: somewordpress
+       MYSQL_DATABASE: wordpress
+       MYSQL_USER: wordpress
+       MYSQL_PASSWORD: wordpress
+
+   wordpress:
+     depends_on:
+       - db
+     image: wordpress:latest
+     ports:
+       - "8000:80"
+     restart: always
+     environment:
+       WORDPRESS_DB_HOST: db:3306
+       WORDPRESS_DB_USER: wordpress
+       WORDPRESS_DB_PASSWORD: wordpress
+       WORDPRESS_DB_NAME: wordpress
+volumes:
+    db_data: {}
+
+####################################################################################################################################################################################
+
+SERVICE/SWARM
+==================
+docker swarm init
+docker swarm init --advertise-addr <MANAGER-IP>
+docker swarm init --advertise-addr $(hostname -i)
+
+docker service create --name redis redis:3.0.6
+docker service create --mode global --name redis2 redis:3.0.6
+
+docker service ls
+
+docker login registry.example.com
+docker service  create --with-registry-auth --name my_service registry.example.com/acme/my_image:latest
+
+docker service create --name redis --replicas=5 redis:3.0.6
+
+docker service create --name my-service --replicas 3 --mount type=volume,source=my-volume,destination=/path/in/container,volume-label="color=red",volume-label="shape=round" nginx:alpine
+
+wget https://github.com/dockersamples/docker-swarm-visualizer/archive/master.zip
+docker run -it -d -p 5000:8080 -v /var/run/docker.sock:/var/run/docker.sock dockersamples/docker-swarm-visualizer-master
+
+#add nodes
+docker swarm join --token SWMTKN-1-41r5smr3kgfx780781xxgbenin2dp7qikfh9eketc0wrhrkzsn-8lbew6gpgxwd5fkn52l7s6fof 192.168.65.3:2377
+docker swarm join-token manager
+docker node ls
+
+docker node promote docker-node
+docker node denote docker-node
+docker node update --role manager docker-node
+
+docker swarm leave
+docker node rm worker1
+
+#services
+docker service create --replicas 4 --name hellogoogle alpine ping google.com
+docker service ls
+docker service scale <SERVICE-ID>=<NUMBER-OF-TASKS>
+docker service inspect SERVICE_NAME
+docker service rm hellogoogle
+
+docker service create --name nginx --replicas 3 --update-delay 10s nginx:mainline
+docker service update --image nginx:stable nginx
+docker service update -d --update-order start-first nginx
+docker service update --update-parallelism 3 nginx
+
+docker service rollback nginx
+docker service update --detach=false --update-failure-action rollback nginx
+
+docker node update --availability drain worker1
+docker node inspect --pretty worker1
+docker node update --availability active worker1
+
+#publish
+docker service create -p 80:80 --name nginx --replicas 3 nginx:mainline
+
+docker service logs hellogoogle
+docker service logs --follow hellogoogle
+
+docker service  create --name=nginx --limit-cpu 0.1 --limit-memory 1G nginx:latest
+docker service inspect --pretty nginx
+
+docker node update --label-add <key>=<value> <node-id>
+
+#Docker stack - extension of copose
+version: "3.7"
+services:
+  nginx:
+    image: nginx:latest
+    ports: ["8080:80"]
+    deploy:
+      replicas: 6
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 1G
+
+docker stack deploy -c docker-compose.yml nginxtest
+docker stack ls
+docker stack ps STACK_NAME
+
+#registry
+docker service create --name registry -p 5000:5000 registry:2
+docker stack deploy --compose-file docker-compose.yml stackdemo
+
+
+OVERLAY/Networking
+================
+docker network create -d overlay my_overlay
+docker service create --name appdomain --network my_overlay --publish 8001:8001 jboss
+docker servise create --name newservice --network my_overlay --publish 8080:8080 
+
+TRUST
+===============
+docker trust key generate ricardo
+docker trust key load key.pem --name ricardo
+docker trust signer add --key cert.pem ricardo dtr.example.com/admin/demo
+docker trust sign dtr.example.com/admin/demo:1
+
+export DOCKER_CONTENT_TRUST=1
+docker push dtr.example.com/admin/demo:1
+
+docker trust inspect --pretty dtr.example.com/admin/demo:1
+
+#/etc/docker/daemon.json -> "content-trust": {"mode": "enforced"}
+
+
+AWS
+==============
+# create 2 ec2 nodes Amazon linux
+# Connect via putty
+sudo yum install docker
+
+#In EC2 one
+sudo docker swarm init
+#Get token
+
+#In EC2 Two
+sudo docker swarm join --token <Token>
+
+sudo docker node ls
+
+sudo vi docker-compose.yaml
+	version: "3"
+	services:
+	  consumer:
+	    image: javainuse/employee-consumer
+	    networks:
+	      - consumer-producer
+	    depends_on:
+	      - producer
+	 
+	  producer:
+	    image: javainuse/employee-producer
+	    ports:
+	      - "8080:8080"
+	    networks:
+	      - consumer-producer 
+	networks:
+	  consumer-producer:
+
+sudo docker stack deploy -c docker-compose.yaml dockTest
+
+sudo docker service ls
+
+sudo docker container ls
+
+sudo docker node ps $(sudo docker node ls -q) --filter desired-state=Running | uniq
+
+sudo docker container logs l3
+sudo docker service logs l3
+
