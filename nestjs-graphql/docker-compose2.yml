@@ -2,7 +2,7 @@ version: '3'
 
 services:
   nodejs:
-    image: 127.0.0.1:5000/nodejs
+    image: nestjs-graphql_nodejs
     build:
       context: ./
       dockerfile: Dockerfile
@@ -14,7 +14,7 @@ services:
       - '3000:3000'
     depends_on: [mongo]
     deploy:
-      replicas: 6
+      replicas: 2
       update_config:
         parallelism: 2
         delay: 10s
